@@ -256,3 +256,52 @@ write.csv(no_hh_age_all,
                         write.yyyy.mm.dd, ".csv"),
           row.names = FALSE)
 
+### Collapse 7+ ####
+
+census_des <- update(census_des,
+                     hh_size_cat = ifelse(hh_size >= 7, "7+",
+                                          as.character(hh_size)))
+no_hh_cat <- svyby(~Counter, by = ~hh_size_cat,
+               des = census_des,
+               svytotal) %>% 
+  rename("Total" = "Counter") %>% 
+  mutate(Area = "WA") %>% 
+  relocate(Area, .before = "hh_size_cat")
+
+no_hh_cat_county <- svyby(~Counter, by = ~COUNTYFIP + hh_size_cat,
+                      des = census_des,
+                      svytotal) %>% 
+  rename("Total" = "Counter",
+         "Area" = "COUNTYFIP")
+
+no_hh_cat_all <- rbind.data.frame(no_hh_cat, no_hh_cat_county)
+
+write.csv(no_hh_cat_all,
+          file = paste0("Tables/TotalHHCat_SE_",
+                        write.yyyy.mm.dd, ".csv"),
+          row.names = FALSE)
+
+no_hh_cat_age <- svyby(~Counter + Under15 + `15-18` + `18-65`
+                       + Above65 + Above18,
+                   by = ~hh_size_cat,
+                   des = census_des,
+                   svytotal) %>% 
+  rename("Total" = "Counter",
+         "se.Total" = "se.Counter") %>% 
+  mutate(Area = "WA") %>% 
+  relocate(Area, .before = "hh_size_cat") 
+
+no_hh_cat_county_age <- svyby(~Counter + Under15 + `15-18` + `18-65` + Above65
+                          + Above18, by = ~COUNTYFIP + hh_size_cat,
+                          des = census_des,
+                          svytotal) %>% 
+  rename("Total" = "Counter",
+         "se.Total" = "se.Counter",
+         "Area" = "COUNTYFIP")
+
+no_hh_cat_age_all <- rbind.data.frame(no_hh_cat_age, no_hh_cat_county_age)
+
+write.csv(no_hh_cat_age_all,
+          file = paste0("Tables/TotalHHCat_byAge_SE_",
+                        write.yyyy.mm.dd, ".csv"),
+          row.names = FALSE)
