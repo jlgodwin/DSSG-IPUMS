@@ -167,7 +167,7 @@ table(hh_data$HH_CHAR, hh_data$hh_size, useNA = "ifany")
 
 ## Age ####
 
-hh_by_size_age <- hh_data %>%
+hh_data_size_age <- hh_data %>%
   filter(HH_CHAR == "Households") %>% 
   select(SERIAL, PERNUM, hh_size, AGE) %>% 
   mutate(AGE_BROAD_BIN = case_when(AGE < 15 ~ "0-15",
@@ -175,12 +175,15 @@ hh_by_size_age <- hh_data %>%
                                    AGE >= 18 & AGE < 65 ~ "18-65",
                                    AGE >= 65 ~ "65-95"),
          ABOVE_18 = ifelse(AGE >= 18, 1, 0)) %>% 
-  group_by(hh_size, SERIAL) %>% 
-  summarise(Under15 = ifelse("0-15" %in% AGE_BROAD_BIN, 1, 0),
+  group_by(SERIAL) %>% 
+  summarise(hh_size = unique(hh_size),
+            Under15 = ifelse("0-15" %in% AGE_BROAD_BIN, 1, 0),
             `15-18` = ifelse("15-18" %in% AGE_BROAD_BIN, 1, 0),
             `18-65` = ifelse("18-65" %in% AGE_BROAD_BIN, 1, 0),
             Above65 = ifelse("65-95" %in% AGE_BROAD_BIN, 1, 0),
-            Above18 = ifelse(sum(ABOVE_18 > 0), 1, 0)) %>% 
+            Above18 = ifelse(sum(ABOVE_18 > 0), 1, 0)) 
+
+hh_by_size_age <- hh_data_size_age %>% 
   ungroup() %>% 
   group_by(hh_size) %>% 
   summarize(Total = n(),
@@ -195,17 +198,17 @@ if(!dir.exists("Tables/")){
 }
 
 write.csv(hh_by_size_age,
-          file = "Tables/HH_by_size_age.csv",
+          file = paste0("Tables/HH_by_size_age_",
+                        write.yyyy.mm.dd, ".csv"),
           row.names = FALSE)
 
 ## Totals by Size with Standard Errors ####
 
 census_des <- svydesign(ids = ~1, strata = ~STRATA, weights = ~HHWT,
-                        data = hh_data %>% 
-                          group_by(STRATA, hh_size) %>%
-                          summarise(Total = unique(SERIAL),
-                                    HHWT = unique(HHWT),
-                                    COUNTYFIP = unique(COUNTYFIP)) %>% 
+                        data = hh_data_size_age %>% 
+                          left_join(hh_data %>% 
+                                      select(SERIAL, STRATA, HHWT, COUNTYFIP),
+                                    by = "SERIAL") %>% 
                           mutate(Counter = 1))
 no_hh <- svyby(~Counter, by = ~hh_size,
                des = census_des,
@@ -223,5 +226,29 @@ no_hh_county <- svyby(~Counter, by = ~COUNTYFIP + hh_size,
 no_hh_all <- rbind.data.frame(no_hh, no_hh_county)
 
 write.csv(no_hh_all,
-          file ="Tables/TotalHH_SE.csv",
+          file = paste0("Tables/TotalHH_SE_",
+                        write.yyyy.mm.dd, ".csv"),
           row.names = FALSE)
+
+no_hh_age <- svyby(~Counter + Under15 + `15-18` + `18-65` + Above65 + Above18,
+               by = ~hh_size,
+               des = census_des,
+               svytotal) %>% 
+  rename("Total" = "Counter") %>% 
+  mutate(Area = "WA") %>% 
+  relocate(Area, .before = "hh_size") 
+
+no_hh_county_age <- svyby(~Counter + Under15 + `15-18` + `18-65` + Above65
+                          + Above18, by = ~COUNTYFIP + hh_size,
+                      des = census_des,
+                      svytotal) %>% 
+  rename("Total" = "Counter",
+         "Area" = "COUNTYFIP")
+
+no_hh_age_all <- rbind.data.frame(no_hh_age, no_hh_county_age)
+
+write.csv(no_hh_age_all,
+          file = paste0("Tables/TotalHH_byAge_SE_",
+                        write.yyyy.mm.dd, ".csv"),
+          row.names = FALSE)
+
