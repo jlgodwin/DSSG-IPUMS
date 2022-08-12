@@ -191,7 +191,9 @@ hh_by_size_age <- hh_data_size_age %>%
             `15-18` = sum(`15-18`),
             `18-65` = sum(`18-65`),
             Above65 = sum(Above65),
-            Above18 = sum(Above18))
+            Above18 = sum(Above18)) %>% 
+  mutate(hh_size = as.character(hh_size)) %>% 
+  mutate(across(where(is.numeric), ~.x*10))
 
 if(!dir.exists("Tables/")){
   dir.create("Tables/")
