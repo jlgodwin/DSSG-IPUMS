@@ -197,3 +197,31 @@ if(!dir.exists("Tables/")){
 write.csv(hh_by_size_age,
           file = "Tables/HH_by_size_age.csv",
           row.names = FALSE)
+
+## Totals by Size with Standard Errors ####
+
+census_des <- svydesign(ids = ~1, strata = ~STRATA, weights = ~HHWT,
+                        data = hh_data %>% 
+                          group_by(STRATA, hh_size) %>%
+                          summarise(Total = unique(SERIAL),
+                                    HHWT = unique(HHWT),
+                                    COUNTYFIP = unique(COUNTYFIP)) %>% 
+                          mutate(Counter = 1))
+no_hh <- svyby(~Counter, by = ~hh_size,
+               des = census_des,
+               svytotal) %>% 
+  rename("Total" = "Counter") %>% 
+  mutate(Area = "WA") %>% 
+  relocate(Area, .before = "hh_size")
+
+no_hh_county <- svyby(~Counter, by = ~COUNTYFIP + hh_size,
+                      des = census_des,
+                      svytotal) %>% 
+  rename("Total" = "Counter",
+         "Area" = "COUNTYFIP")
+
+no_hh_all <- rbind.data.frame(no_hh, no_hh_county)
+
+write.csv(no_hh_all,
+          file ="Tables/TotalHH_SE.csv",
+          row.names = FALSE)
